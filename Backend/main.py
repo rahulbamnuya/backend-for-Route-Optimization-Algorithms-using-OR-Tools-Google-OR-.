@@ -10,7 +10,16 @@ from openrouteservice.exceptions import ApiError
 from fastapi.encoders import jsonable_encoder
 
 # Import the refactored solver functions
+from fastapi import FastAPI
 from .vrp_solver import get_distance_matrix, solve_cvrp_without_restrictions, compute_route_geometries
+
+app = FastAPI()
+
+@app.get("/")
+def home():
+    return {"message": "Route Optimization Backend is running 🚀"}
+
+# keep your existing VRP endpoints below...
 
 # --- NEW: Configure structured logging ---
 logging.basicConfig(
