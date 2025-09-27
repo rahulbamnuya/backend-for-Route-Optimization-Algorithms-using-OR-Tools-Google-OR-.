@@ -1,45 +1,87 @@
-
 import logging
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 from openrouteservice.exceptions import ApiError
-
-def get_distance_matrix(client, locations):
+from math import radians, sin, cos, sqrt, atan2
+# def get_distance_matrix(client, locations):
+#     """
+#     Fetches a distance matrix from the OpenRouteService API.
+    
+#     Args:
+#         client: An initialized openrouteservice.Client instance.
+#         locations: A list of (latitude, longitude) tuples.
+        
+#     Returns:
+#         A dictionary-based matrix of distances in meters, or None if the API call fails.
+#     """
+#     try:
+#         # ORS expects coordinates in (longitude, latitude) format.
+#         coordinates = [(lon, lat) for lat, lon in locations]
+        
+#         matrix_response = client.distance_matrix(
+#             locations=coordinates,
+#             profile='driving-car',
+#             metrics=['distance'],
+#             units='m'
+#         )
+        
+#         # Convert the list-of-lists response to a more stable dict-of-dicts.
+#         # Use a large number for unreachable locations.
+#         distance_matrix = {
+#             i: {j: int(dist) if dist is not None else 9999999 for j, dist in enumerate(row)}
+#             for i, row in enumerate(matrix_response['distances'])
+#         }
+#         return distance_matrix
+        
+#     except ApiError as e:
+#         logging.error(f"ORS ApiError in get_distance_matrix: {e}")
+#         return None
+#     except Exception as e:
+#         logging.error(f"Unexpected error in get_distance_matrix: {e}")
+#         return None
+def get_distance_matrix(locations):
     """
-    Fetches a distance matrix from the OpenRouteService API.
+    Calculates a distance matrix using the Haversine formula (straight-line distance).
     
     Args:
-        client: An initialized openrouteservice.Client instance.
         locations: A list of (latitude, longitude) tuples.
         
     Returns:
-        A dictionary-based matrix of distances in meters, or None if the API call fails.
+        A dictionary-based matrix of distances in integer meters.
     """
-    try:
-        # ORS expects coordinates in (longitude, latitude) format.
-        coordinates = [(lon, lat) for lat, lon in locations]
+    
+    def _haversine_distance(lat1, lon1, lat2, lon2):
+        """Calculates the straight-line distance between two points in meters."""
+        R = 6371000  # Earth radius in meters
         
-        matrix_response = client.distance_matrix(
-            locations=coordinates,
-            profile='driving-car',
-            metrics=['distance'],
-            units='m'
-        )
+        rad_lat1 = radians(lat1)
+        rad_lon1 = radians(lon1)
+        rad_lat2 = radians(lat2)
+        rad_lon2 = radians(lon2)
         
-        # Convert the list-of-lists response to a more stable dict-of-dicts.
-        # Use a large number for unreachable locations.
-        distance_matrix = {
-            i: {j: int(dist) if dist is not None else 9999999 for j, dist in enumerate(row)}
-            for i, row in enumerate(matrix_response['distances'])
-        }
-        return distance_matrix
+        dlon = rad_lon2 - rad_lon1
+        dlat = rad_lat2 - rad_lat1
         
-    except ApiError as e:
-        logging.error(f"ORS ApiError in get_distance_matrix: {e}")
-        return None
-    except Exception as e:
-        logging.error(f"Unexpected error in get_distance_matrix: {e}")
-        return None
+        a = sin(dlat / 2)**2 + cos(rad_lat1) * cos(rad_lat2) * sin(dlon / 2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        
+        return int(R * c) # Return distance in integer meters
 
+    num_locations = len(locations)
+    distance_matrix = {}
+    
+    logging.info("Building distance matrix using Haversine formula...")
+    for i in range(num_locations):
+        distance_matrix[i] = {}
+        for j in range(num_locations):
+            if i == j:
+                distance_matrix[i][j] = 0
+            else:
+                lat1, lon1 = locations[i]
+                lat2, lon2 = locations[j]
+                distance_matrix[i][j] = _haversine_distance(lat1, lon1, lat2, lon2)
+    
+    logging.info("Successfully built distance matrix.")
+    return distance_matrix
 def solve_cvrp_without_restrictions(distance_matrix, vehicles, demands, location_names, time_limit_seconds=15):
     """
     Solves the Capacitated Vehicle Routing Problem using OR-Tools.
@@ -143,47 +185,39 @@ def solve_cvrp_without_restrictions(distance_matrix, vehicles, demands, location
 
 def compute_route_geometries(client, locations, optimized_data):
     """
-    Fetches route geometry (a list of points for drawing on a map) for each route.
+    Fetches route geometry for each route in a single API call per route.
+    This is much more efficient and avoids rate limiting.
     """
-    def get_segment(start_coord, end_coord):
-        """Fetches geometry for a single segment between two points."""
+    for vehicle_route in optimized_data:
+        path_indices = vehicle_route.get("Route Indices", [])
+        
+        if len(path_indices) < 2:
+            vehicle_route["Route Geometry"] = []
+            continue
+
         try:
-            # ORS expects (lon, lat)
-            route = client.directions(
-                coordinates=[(start_coord[1], start_coord[0]), (end_coord[1], end_coord[0])],
+            # Get the list of coordinates for the entire route
+            # ORS expects (longitude, latitude)
+            route_coords = [
+                (locations[idx][1], locations[idx][0]) for idx in path_indices
+            ]
+
+            # Make a single API call for the whole route
+            route_response = client.directions(
+                coordinates=route_coords,
                 profile='driving-car',
                 format='geojson'
             )
-            # Geometry coordinates are [lon, lat], convert to [lat, lon] for Leaflet/frontend
-            coords = route['features'][0]['geometry']['coordinates']
-            return [[c[1], c[0]] for c in coords]
+            
+            # Extract the geometry and convert from [lon, lat] to [lat, lon] for the frontend
+            geometry = route_response['features'][0]['geometry']['coordinates']
+            vehicle_route["Route Geometry"] = [[c[1], c[0]] for c in geometry]
+
         except Exception as e:
-            logging.warning(f"ORS directions API failed for a segment: {e}. Falling back to a straight line.")
-            # Fallback to a straight line if the API fails
-            return [[start_coord[0], start_coord[1]], [end_coord[0], end_coord[1]]]
-
-    for vehicle_route in optimized_data:
-        path_indices = vehicle_route.get("Route Indices", [])
-        full_coords = []
-        if not path_indices:
-            vehicle_route["Route Geometry"] = []
-            continue
+            logging.warning(f"ORS directions API failed for an entire route: {e}. Falling back to straight lines.")
+            # Fallback: create a simple straight-line geometry if the API fails
+            vehicle_route["Route Geometry"] = [
+                [locations[idx][0], locations[idx][1]] for idx in path_indices
+            ]
             
-        for j in range(len(path_indices) - 1):
-            start_node_index = path_indices[j]
-            end_node_index = path_indices[j+1]
-            
-            start_loc = locations[start_node_index]
-            end_loc = locations[end_node_index]
-            
-            segment = get_segment(start_loc, end_loc)
-            
-            if not full_coords:
-                full_coords.extend(segment)
-            else:
-                # To avoid duplicate points when joining segments, skip the first point of the new segment
-                full_coords.extend(segment[1:])
-                
-        vehicle_route["Route Geometry"] = full_coords
-
     return optimized_data
