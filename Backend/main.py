@@ -22,7 +22,14 @@ logging.basicConfig(
 load_dotenv()
 ORS_API_KEY = os.getenv("ORS_API_KEY")
 
-app = FastAPI(title="VRP Solver API")
+
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+def read_root():
+    return {"message": "FastAPI backend is running 🚀"}
 
 # --- BEST PRACTICE: For production, specify your frontend's actual origin ---
 # Example: allow_origins=["http://localhost:3000", "https://your-app-domain.com"]
