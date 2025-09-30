@@ -10,7 +10,7 @@ from openrouteservice.exceptions import ApiError
 from fastapi.encoders import jsonable_encoder
 
 # Import the refactored solver functions
-from .vrp_solver import get_distance_matrix, solve_cvrp_without_restrictions, compute_route_geometries
+from vrp_solver import get_distance_matrix, solve_cvrp_without_restrictions, compute_route_geometries
 
 # --- NEW: Configure structured logging ---
 logging.basicConfig(
