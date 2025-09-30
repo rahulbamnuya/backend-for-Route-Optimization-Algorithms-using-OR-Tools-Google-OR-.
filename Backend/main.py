@@ -27,9 +27,13 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
+from fastapi import FastAPI
+
+app = FastAPI()
+
 @app.get("/")
-def read_root():
-    return {"message": "FastAPI backend is running 🚀"}
+def root():
+    return {"status": "ok", "message": "Backend is running 🚀"}
 
 # --- BEST PRACTICE: For production, specify your frontend's actual origin ---
 # Example: allow_origins=["http://localhost:3000", "https://your-app-domain.com"]
