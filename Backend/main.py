@@ -10,7 +10,7 @@ from openrouteservice.exceptions import ApiError
 from fastapi.encoders import jsonable_encoder
 
 # Import the refactored solver functions
-from vrp_solver import get_distance_matrix, solve_cvrp_without_restrictions, compute_route_geometries
+from .vrp_solver import get_distance_matrix, solve_cvrp_without_restrictions, compute_route_geometries
 
 # --- NEW: Configure structured logging ---
 logging.basicConfig(
@@ -27,13 +27,9 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
-from fastapi import FastAPI
-
-app = FastAPI()
-
 @app.get("/")
-def root():
-    return {"status": "ok", "message": "Backend is running 🚀"}
+def read_root():
+    return {"message": "FastAPI backend is running 🚀"}
 
 # --- BEST PRACTICE: For production, specify your frontend's actual origin ---
 # Example: allow_origins=["http://localhost:3000", "https://your-app-domain.com"]
