@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import openrouteservice
 from openrouteservice.exceptions import ApiError
 from fastapi.encoders import jsonable_encoder
+from fastapi.responses import RedirectResponse
 
 # Import solver functions
 from .vrp_solver import get_distance_matrix, solve_cvrp_without_restrictions, compute_route_geometries
@@ -19,22 +20,32 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 load_dotenv()
 ORS_API_KEY = os.getenv("ORS_API_KEY")
 
+# FastAPI app
 app = FastAPI()
 
+# ---------- Root & Health ----------
 @app.get("/")
 def read_root():
-    return {"message": "FastAPI backend is running 🚀"}
+    return {"status": "ok", "message": "Backend is running on Render!"}
 
-# CORS
+@app.head("/")
+def root_head():
+    return {"status": "ok"}
+
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
+
+# ---------- CORS ----------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],   # update with your frontend domain in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Pydantic models
+# ---------- Pydantic Models ----------
 class Location(BaseModel):
     name: str
     latitude: float
@@ -54,10 +65,7 @@ class OptimizeRequest(BaseModel):
     include_geometry: Optional[bool] = True
     time_limit_seconds: Optional[int] = 15
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
+# ---------- API Endpoint ----------
 @app.post("/optimize")
 def optimize(req: OptimizeRequest):
     if not ORS_API_KEY:
