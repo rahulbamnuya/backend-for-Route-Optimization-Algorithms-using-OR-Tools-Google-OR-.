@@ -11,14 +11,21 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import RedirectResponse
 
 # Import solver functions
-from .vrp_solver import get_distance_matrix, solve_cvrp_without_restrictions, compute_route_geometries
+from vrp_solver import get_distance_matrix, solve_cvrp_without_restrictions, compute_route_geometries
 
 # Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load env vars
-load_dotenv()
+from dotenv import load_dotenv
+import os
+
+load_dotenv()  # optional in Render
 ORS_API_KEY = os.getenv("ORS_API_KEY")
+
+if not ORS_API_KEY:
+    raise RuntimeError("ORS_API_KEY not set")
+
 
 # FastAPI app
 app = FastAPI()
