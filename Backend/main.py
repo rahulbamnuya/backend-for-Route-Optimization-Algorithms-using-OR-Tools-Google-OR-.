@@ -35,6 +35,13 @@ def root_head():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+from fastapi.responses import RedirectResponse
+
+from fastapi import Request
+
+@app.post("/")
+async def root_post(request: Request):
+    return {"status": "error", "message": "Use POST /optimize instead"}
 
 # ---------- CORS ----------
 app.add_middleware(
