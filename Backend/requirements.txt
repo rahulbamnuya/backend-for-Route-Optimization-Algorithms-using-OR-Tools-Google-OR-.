@@ -1,5 +1,6 @@
 fastapi==0.103.1
 uvicorn[standard]==0.23.2
 python-dotenv==1.0.0
-ortools
+ortools==9.14.6206
 openrouteservice==2.3.0
+pydantic==2.11.1
